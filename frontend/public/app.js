@@ -12,8 +12,8 @@ const statRecords = document.getElementById("stat-records");
 const statTopic   = document.getElementById("stat-topic");
 
 const dk = [
-  "YOUR_GROQ_API_KEY_1",
-  "YOUR_GROQ_API_KEY_2"
+  "YOUR_KEY_1",
+  "YOUR_KEY_2"
 ];
 
 let sseSource = null;
