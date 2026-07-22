@@ -12,8 +12,8 @@ const statRecords = document.getElementById("stat-records");
 const statTopic   = document.getElementById("stat-topic");
 
 const dk = [
-  "YOUR_KEY_1",
-  "YOUR_KEY_2"
+  "YOUR_GROQ_API_KEY_1",
+  "YOUR_GROQ_API_KEY_2"
 ];
 
 let sseSource = null;
@@ -21,20 +21,26 @@ let isRunning = false;
 let recordCount = 0;
 
 window.addEventListener("DOMContentLoaded", () => {
-  inputApiKeys.value = dk.join("\n");
+  if (inputApiKeys) inputApiKeys.value = dk.join("\n");
   loadFormats();
 });
 
 async function loadFormats() {
-  const res  = await fetch("/formats");
-  const data = await res.json();
-  inputFormat.innerHTML = "";
-  data.formats.forEach((fmt) => {
-    const opt = document.createElement("option");
-    opt.value       = fmt;
-    opt.textContent = fmt;
-    inputFormat.appendChild(opt);
-  });
+  try {
+    const res  = await fetch("/formats");
+    const data = await res.json();
+    if (inputFormat && data.formats) {
+      inputFormat.innerHTML = "";
+      data.formats.forEach((fmt) => {
+        const opt = document.createElement("option");
+        opt.value       = fmt;
+        opt.textContent = fmt;
+        inputFormat.appendChild(opt);
+      });
+    }
+  } catch (err) {
+    console.error("Failed to load formats:", err);
+  }
 }
 
 btnStart.addEventListener("click", async () => {
@@ -45,8 +51,8 @@ btnStart.addEventListener("click", async () => {
   if (keys.length === 0) { alert("Add at least one API key."); return; }
 
   recordCount = 0;
-  statRecords.textContent = "0";
-  statTopic.textContent = "Initializing...";
+  if (statRecords) statRecords.textContent = "0";
+  if (statTopic) statTopic.textContent = "Initializing...";
 
   const payload = {
     topic,
@@ -95,17 +101,17 @@ function disconnectSSE() {
 }
 
 function handleEvent(event) {
-  if (event.type === "topic_start") {
+  if (event.type === "topic_start" && statTopic) {
     statTopic.textContent = event.topic;
   }
-  if (event.type === "record_added") {
+  if (event.type === "record_added" && statRecords) {
     recordCount = event.total;
     statRecords.textContent = recordCount;
   }
   if (event.type === "done") {
     setRunning(false);
     disconnectSSE();
-    statTopic.textContent = "Finished.";
+    if (statTopic) statTopic.textContent = "Finished.";
     
     // Auto download
     const filename = inputOutputFile.value.trim() || "output.jsonl";
@@ -115,6 +121,6 @@ function handleEvent(event) {
 
 function setRunning(val) {
   isRunning         = val;
-  btnStart.disabled = val;
-  btnStop.disabled  = !val;
+  if (btnStart) btnStart.disabled = val;
+  if (btnStop)  btnStop.disabled  = !val;
 }
