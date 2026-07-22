@@ -11,7 +11,7 @@ const btnStop         = document.getElementById("btn-stop");
 const statRecords = document.getElementById("stat-records");
 const statTopic   = document.getElementById("stat-topic");
 
-const DEFAULT_KEYS = [
+const dk = [
   "YOUR_GROQ_API_KEY_1",
   "YOUR_GROQ_API_KEY_2"
 ];
@@ -21,7 +21,7 @@ let isRunning = false;
 let recordCount = 0;
 
 window.addEventListener("DOMContentLoaded", () => {
-  inputApiKeys.value = DEFAULT_KEYS.join("\n");
+  inputApiKeys.value = dk.join("\n");
   loadFormats();
 });
 

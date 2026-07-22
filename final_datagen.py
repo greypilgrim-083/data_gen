@@ -7,11 +7,12 @@ from groq import Groq
 from collections import deque
 from personas import GENERATOR_PERSONAS, EXTRACTOR_PERSONAS
 import time
-
-API_KEYS = [
-    "YOUR_GROQ_API_KEY_1",
-    "YOUR_GROQ_API_KEY_2",
-]
+API_KEYS=[]
+# uncomment this
+# API_KEYS = [
+#     "YOUR_GROQ_API_KEY_1",
+#     "YOUR_GROQ_API_KEY_2",
+# ]
 
 key_cycle = itertools.cycle(API_KEYS)
 

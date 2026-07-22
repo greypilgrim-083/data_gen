@@ -5,7 +5,6 @@ import re
 
 API_KEYS = [
     "",
-    # add more
 ]
 key_cycle = itertools.cycle(API_KEYS)
 
