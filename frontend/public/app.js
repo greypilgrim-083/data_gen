@@ -12,10 +12,8 @@ const statRecords = document.getElementById("stat-records");
 const statTopic   = document.getElementById("stat-topic");
 
 const DEFAULT_KEYS = [
-  "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",
-  "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",
-  "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",
-  "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",
+  "YOUR_GROQ_API_KEY_1",
+  "YOUR_GROQ_API_KEY_2"
 ];
 
 let sseSource = null;
