@@ -4,8 +4,7 @@ import itertools
 import re
 
 API_KEYS = [
-    "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",
-    "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",
+    "",
     # add more
 ]
 key_cycle = itertools.cycle(API_KEYS)
