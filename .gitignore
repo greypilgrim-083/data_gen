@@ -4,3 +4,14 @@ __pycache__/
 *.jsonl
 bfs_config.json
 .DS_Store
+.env
+
+# Obsolete local files
+frontend/server.js
+frontend/package.json
+frontend/package-lock.json
+bfs.py
+final_datagen.py
+datagen_manual.py
+test_backend.py
+q,jsonl

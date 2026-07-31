@@ -1,4 +1,7 @@
 fastapi
-uvicorn
-pydantic
-groq
+uvicorn[standard]
+openai
+pymongo
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv

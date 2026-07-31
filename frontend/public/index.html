@@ -3,65 +3,126 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DataGen Engine</title>
+  <title>DataGen Engine Pro</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="layout">
-    <!-- LEFT: Config -->
-    <div class="panel" id="panel-config">
-      <h2>Configuration</h2>
+  <!-- Animated Background -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
 
-      <label>Master Topic
-        <input type="text" id="topic" placeholder="e.g. TypeScript" value="TypeScript" />
-      </label>
-
-      <label>Seed Topics (how many subtopics to start with)
-        <input type="number" id="num-seed" value="10" min="2" max="50" />
-      </label>
-
-      <label>Max Outputs
-        <input type="number" id="max-outputs" value="20" min="1" />
-      </label>
-
-      <label>Dataset Type
-        <select id="dataset-type">
-          <option value="multi_turn">Multi Turn</option>
-          <option value="single_turn">Single Turn</option>
-        </select>
-      </label>
-
-      <label>Output Format
-        <select id="format">
-          <!-- filled by JS -->
-        </select>
-      </label>
-
-      <label>Output File
-        <input type="text" id="output-file" value="output.jsonl" />
-      </label>
-
-      <label>Groq API Keys (one per line)
-        <textarea id="api-keys" rows="5"></textarea>
-      </label>
-
-      <div class="btn-row">
-        <button class="btn-start" id="btn-start">▶ Start Generation</button>
-        <button class="btn-stop" id="btn-stop" disabled>■ Stop</button>
-      </div>
+  <!-- Navbar -->
+  <nav class="navbar glass">
+    <div class="nav-brand">✨ DataGen <span>Pro</span></div>
+    <div class="nav-links">
+      <a href="#" id="link-home" class="active">Generator</a>
+      <a href="#" id="link-dashboard" style="display:none;">Dashboard</a>
+      <a href="#" id="link-auth">Login</a>
+      <a href="#" id="link-logout" style="display:none;">Logout</a>
     </div>
+  </nav>
 
-    <!-- RIGHT: Status -->
-    <div class="panel" id="panel-status">
-      <div class="status-box">
-        <h1 class="status-msg">Dataset will be generated and downloaded automatically.</h1>
-        <div class="status-stat">Records added: <span id="stat-records">0</span></div>
-        <div class="status-stat">Currently generating: <span id="stat-topic">Waiting to start...</span></div>
+  <main class="container">
+    
+    <!-- AUTH VIEW -->
+    <section id="view-auth" class="view hidden glass-panel">
+      <h2 id="auth-title">Welcome Back</h2>
+      <p id="auth-subtitle">Login to save your datasets</p>
+      
+      <form id="form-auth" class="auth-form">
+        <div class="input-group">
+          <label>Email</label>
+          <input type="email" id="auth-email" required placeholder="you@example.com" />
+        </div>
+        <div class="input-group">
+          <label>Password</label>
+          <input type="password" id="auth-password" required placeholder="••••••••" />
+        </div>
+        <button type="submit" class="btn-primary" id="btn-auth-submit">Login</button>
+      </form>
+      <div class="auth-toggle">
+        <span id="auth-toggle-text">Don't have an account?</span>
+        <a href="#" id="auth-toggle-link">Register here</a>
       </div>
-    </div>
-  </div>
+    </section>
+
+    <!-- GENERATOR VIEW -->
+    <section id="view-home" class="view glass-panel">
+      <div class="split-layout">
+        <div class="config-side">
+          <h2>Configuration</h2>
+          <div class="input-group">
+            <label>Master Topic</label>
+            <input type="text" id="topic" placeholder="e.g. Advanced TypeScript Patterns" value="TypeScript" />
+          </div>
+          <div class="row">
+            <div class="input-group">
+              <label>Seed Topics</label>
+              <input type="number" id="num-seed" value="10" min="2" max="50" />
+            </div>
+            <div class="input-group">
+              <label>Max Outputs</label>
+              <input type="number" id="max-outputs" value="20" min="1" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="input-group">
+              <label>Dataset Type</label>
+              <select id="dataset-type">
+                <option value="multi_turn">Multi Turn</option>
+                <option value="single_turn">Single Turn</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Output Format</label>
+              <select id="format"></select>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Output File Name</label>
+            <input type="text" id="output-file" value="" placeholder="e.g. data.jsonl (optional)" />
+          </div>
+          
+          <button class="btn-primary start-btn" id="btn-start">
+            <span class="btn-text">Generate Dataset</span>
+            <span class="btn-glow"></span>
+          </button>
+          
+          <button class="btn-secondary" id="btn-view-datasets" style="margin-top: 15px; width: 100%; display: none;">
+            View Previous Datasets
+          </button>
+        </div>
+
+        <div class="status-side">
+          <div class="status-content">
+            <h3 id="stat-topic">Ready to Generate</h3>
+            <p class="stat-records">Records Generated: <span id="stat-records">0</span></p>
+            
+            <div class="progress-container">
+              <div class="progress-bar" id="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+              </div>
+              <div class="progress-text" id="progress-text">0%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD VIEW -->
+    <section id="view-dashboard" class="view hidden glass-panel">
+      <h2>Your Datasets</h2>
+      <p>Download your previously generated datasets.</p>
+      
+      <div class="datasets-grid" id="datasets-grid">
+        <!-- populated by JS -->
+      </div>
+    </section>
+
+  </main>
+
   <script src="app.js"></script>
 </body>
 </html>
