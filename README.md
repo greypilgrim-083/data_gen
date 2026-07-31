@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>✨ DataGen Pro</h1>
+  <h1> DataGen Pro</h1>
   <p><strong>Fully Automated, Self-Expanding Synthetic Data Generation for LLM Fine-Tuning</strong></p>
   
   [![Deploy on Render](https://img.shields.io/badge/Deployed%20on-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://data-gen-rt70.onrender.com/)
