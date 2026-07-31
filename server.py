@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from pymongo import MongoClient
@@ -53,7 +53,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # ── Models ────────────────────────────────────────────────────────────────────
 class AuthBody(BaseModel):
     email: str
-    password: str
+    password: str = Field(..., max_length=72)
 
 class StartBody(BaseModel):
     topic: str
