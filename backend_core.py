@@ -29,16 +29,28 @@ _clients = [
 _client_cycle = itertools.cycle(_clients)
 
 def call_api(**kwargs) -> str:
-    """Call the API, cycling keys and retrying with backoff on any error."""
-    delays = [5, 15, 30, 60]
+    """Call the API, cycling keys. If a key fails, try the next one immediately. 
+    If ALL keys fail in a row, then apply exponential backoff and retry."""
+    delays = [5, 15, 30, 60, 120]
+    num_keys = len(_clients)
+    
     for attempt, delay in enumerate(delays + [None]):
-        try:
-            return next(_client_cycle).chat.completions.create(**kwargs).choices[0].message.content
-        except Exception as e:
-            if delay is None:
-                raise
-            print(f"[API error attempt {attempt+1}] {e} — retrying in {delay}s")
-            time.sleep(delay)
+        # Try every available key once before backing off
+        for _ in range(num_keys):
+            try:
+                client = next(_client_cycle)
+                return client.chat.completions.create(**kwargs).choices[0].message.content
+            except Exception as e:
+                # Key failed (likely 429), immediately try the next key in the cycle
+                print(f"[API Warning] Key failed: {e}")
+                continue
+                
+        # If we get here, EVERY key failed in a row. Now we sleep.
+        if delay is None:
+            raise Exception("All API keys are rate limited or invalid, and all retry attempts failed.")
+        
+        print(f"[API Exhausted attempt {attempt+1}] All keys currently rate limited — backing off for {delay}s")
+        time.sleep(delay)
 
 
 def strip_followup(text):
