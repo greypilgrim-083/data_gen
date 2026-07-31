@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from jose import jwt, JWTError
-from passlib.context import CryptContext
+import bcrypt
 from pymongo import MongoClient
 from bson import ObjectId
 import os
@@ -32,7 +32,13 @@ datasets_col = db["datasets"]
 records_col  = db["datasetrecords"]
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')[:72]
+    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    pwd_bytes = plain_password.encode('utf-8')[:72]
+    return bcrypt.checkpw(pwd_bytes, hashed_password.encode('utf-8'))
 
 def verify_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization or not authorization.startswith("Bearer "):
@@ -68,14 +74,14 @@ class StartBody(BaseModel):
 def register(body: AuthBody):
     if users_col.find_one({"email": body.email}):
         raise HTTPException(400, "Email already exists")
-    result = users_col.insert_one({"email": body.email, "password": pwd_ctx.hash(body.password)})
+    result = users_col.insert_one({"email": body.email, "password": hash_password(body.password)})
     token = jwt.encode({"_id": str(result.inserted_id)}, JWT_SECRET, algorithm="HS256")
     return {"token": token}
 
 @app.post("/api/auth/login")
 def login(body: AuthBody):
     user = users_col.find_one({"email": body.email})
-    if not user or not pwd_ctx.verify(body.password, user["password"]):
+    if not user or not verify_password(body.password, user["password"]):
         raise HTTPException(400, "Invalid credentials")
     token = jwt.encode({"_id": str(user["_id"])}, JWT_SECRET, algorithm="HS256")
     return {"token": token}

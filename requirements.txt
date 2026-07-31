@@ -3,5 +3,5 @@ uvicorn[standard]
 openai
 pymongo
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 python-dotenv
