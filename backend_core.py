@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "qwen/qwen3.6-27b"
 
 # Load keys from env or fallback to empty
 api_keys_str = os.getenv("GROQ_API_KEYS", "")
