@@ -7,11 +7,4 @@ bfs_config.json
 .env
 
 # Obsolete local files
-frontend/server.js
-frontend/package.json
-frontend/package-lock.json
-bfs.py
-final_datagen.py
-datagen_manual.py
-test_backend.py
-q,jsonl
+trash/
