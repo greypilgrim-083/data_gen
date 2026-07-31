@@ -17,7 +17,7 @@
 
 ## 🚀 Key Features
 
-* **Recursive BFS Topic Expansion:** Extracts technical keywords from its own generations and recursively explores them using a Breadth-First Search (BFS) queue. A single seed topic can automatically expand into a massive domain dataset.
+* **BFS Topic Expansion:** Extracts technical keywords from its own generations and recursively explores them using a Breadth-First Search (BFS) queue. A single seed topic can automatically expand into a massive domain dataset.
 * **Matrix Persona Generation:** Simulates conversations using **15 diverse user personas** (e.g., *Confused CS Student, FAANG Interviewer, Startup CTO in Crisis*) against **5 distinct AI personas** (e.g., *Pragmatic Senior, Patient Tutor*). This prevents repetitive, monotone data.
 * **Auto API Key Rotation:** Seamlessly rotates through a pool of Groq API keys with exponential backoff and retry logic to avoid `429 Too Many Requests` limits.
 * **Format Versatility:** Exports directly into standard fine-tuning formats (`sharegpt`, `alpaca`, `openai`).
