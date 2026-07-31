@@ -107,10 +107,14 @@ formAuth.addEventListener("submit", async (e) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: authEmail.value, password: authPassword.value })
     });
+    
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || errData.error || "Server returned an error");
+    }
+    
     const data = await res.json();
-    if (data.error) {
-      alert(data.error);
-    } else if (data.token) {
+    if (data.token) {
       localStorage.setItem("token", data.token);
       checkAuth();
       showView(viewHome);
@@ -118,7 +122,7 @@ formAuth.addEventListener("submit", async (e) => {
       authPassword.value = "";
     }
   } catch (err) {
-    alert("Authentication failed.");
+    alert("Authentication failed: " + err.message);
   }
 });
 
