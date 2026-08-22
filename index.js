@@ -7,9 +7,15 @@ const { User, Job } = require("./db");
 const auth = require("./auth");
 const { runBFS } = require("./bfs");
 
+const path = require("path");
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve built frontend
+const frontendDist = path.join(__dirname, "frontend", "dist");
+app.use(express.static(frontendDist));
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -176,6 +182,11 @@ app.get("/jobs/:id/download", auth, async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${job.topic}-${format}.jsonl"`);
   res.setHeader("Content-Type", "application/jsonl");
   res.send(lines.join("\n"));
+});
+
+// SPA fallback — serve index.html for any non-API route
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
 });
 
 const PORT = process.env.PORT || 5000;
