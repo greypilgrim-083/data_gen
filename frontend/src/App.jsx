@@ -78,64 +78,66 @@ export default function App() {
             </div>
           </div>
 
-        <button 
-          className="btn btn-primary btn-block" 
-          onClick={() => setActiveJobId(null)}
-          style={{ marginBottom: "1rem" }}
-        >
-          + New Dataset
-        </button>
+          <button
+            className="btn btn-primary btn-block"
+            onClick={() => setActiveJobId(null)}
+            style={{ marginBottom: "1rem" }}
+          >
+            + New Dataset
+          </button>
 
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, padding: "0 0.5rem", marginBottom: "0.5rem", textTransform: "uppercase" }}>
-            History
-          </div>
-          <div className="history-list">
-            {jobs.length === 0 ? (
-              <div style={{ padding: "1rem", color: "var(--muted)", fontSize: "0.85rem", textAlign: "center" }}>No datasets yet</div>
-            ) : (
-              jobs.map(job => (
-                <div 
-                  key={job._id}
-                  className={`history-item ${activeJobId === job._id || (!activeJobId && runningJobId === job._id) ? 'active' : ''}`}
-                  onClick={() => handleJobClick(job._id)}
-                >
-                  <div className="history-topic">{job.topic}</div>
-                  <div className="history-meta">
-                    {new Date(job.createdAt).toLocaleDateString()} • {job.status === "running" ? "Running..." : `${job.metrics?.totalRecords || 0} rows`}
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, padding: "0 0.5rem", marginBottom: "0.5rem", textTransform: "uppercase" }}>
+              History
+            </div>
+            <div className="history-list">
+              {jobs.length === 0 ? (
+                <div style={{ padding: "1rem", color: "var(--muted)", fontSize: "0.85rem", textAlign: "center" }}>No datasets yet</div>
+              ) : (
+                jobs.map(job => (
+                  <div
+                    key={job._id}
+                    className={`history-item ${activeJobId === job._id ? 'active' : ''}`}
+                    onClick={() => handleJobClick(job._id)}
+                  >
+                    <div className="history-topic">{job.topic}</div>
+                    <div className="history-meta">
+                      {new Date(job.createdAt).toLocaleDateString()} • {job.status === "running" ? "Running..." : `${job.metrics?.totalRecords || 0} rows`}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: "1rem" }}>
+            <button className="btn btn-ghost btn-block" onClick={logout}>Sign Out</button>
           </div>
         </div>
 
-        <div style={{ marginTop: "1rem" }}>
-          <button className="btn btn-ghost btn-block" onClick={logout}>Sign Out</button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="main-content">
-        {activeJobId && (
-          <div style={{ height: "100%", overflowY: "auto" }}>
-            <Analytics key={activeJobId} jobId={activeJobId} />
+        {/* Main Content */}
+        <div className="main-content">
+          {activeJobId && (
+            <div style={{ height: "100%", overflowY: "auto" }}>
+              <Analytics key={activeJobId} jobId={activeJobId} />
+            </div>
+          )}
+          <div style={{ display: activeJobId ? 'none' : 'block', height: '100%' }}>
+            <Generate
+              onJobCreated={(id) => {
+                setRunningJobId(id);
+                loadJobs();
+              }}
+              onNavigateAnalytics={(id) => {
+                setRunningJobId(null);
+                loadJobs();
+                setActiveJobId(id);
+              }}
+            />
           </div>
-        )}
-        <div style={{ display: activeJobId ? 'none' : 'block', height: '100%' }}>
-          <Generate 
-            onJobCreated={(id) => {
-              setRunningJobId(id);
-              loadJobs();
-            }} 
-            onNavigateAnalytics={(id) => {
-              setRunningJobId(null);
-              loadJobs();
-              setActiveJobId(id);
-            }} 
-          />
         </div>
       </div>
     </>
   );
 }
+
