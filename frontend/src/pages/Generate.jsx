@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { createJob } from "../api";
+import { createJob, BASE } from "../api";
 
 export default function Generate({ onJobCreated, onNavigateAnalytics }) {
   const [topic, setTopic] = useState("");
@@ -44,7 +44,7 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
     if (onJobCreated) onJobCreated(jobId);
 
     const token = localStorage.getItem("token");
-    const url = `http://localhost:5000/jobs/${jobId}/stream?apiKey=${encodeURIComponent(apiKey)}&token=${token}`;
+    const url = `${BASE}/jobs/${jobId}/stream?apiKey=${encodeURIComponent(apiKey)}&token=${token}`;
     const es = new EventSource(url);
     esRef.current = es;
 

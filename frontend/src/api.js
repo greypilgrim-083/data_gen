@@ -1,4 +1,4 @@
-const BASE = import.meta.env.DEV ? "http://localhost:5000" : "";
+export const BASE = import.meta.env.DEV ? "http://localhost:5000" : "";
 
 const getToken = () => localStorage.getItem("token");
 
