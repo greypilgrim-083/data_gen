@@ -185,7 +185,7 @@ app.get("/jobs/:id/download", auth, async (req, res) => {
 });
 
 // SPA fallback — serve index.html for any non-API route
-app.get("*", (req, res) => {
+app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 
