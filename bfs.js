@@ -296,6 +296,7 @@ async function* runBFS({
   topic,
   maxDepth = 2,
   maxNodes = 10,
+  maxRecords,
   branchingFactor = 3,
   model,
   turns = 5,
@@ -317,11 +318,24 @@ async function* runBFS({
     : Math.min(Math.max(branchingFactor, 3), 5);
 
   while (queue.length > 0 && processedCount < maxNodes) {
+    if (maxRecords && totalSamples >= maxRecords) {
+      console.log(`[BFS] Reached maxRecords limit of ${maxRecords}. Breaking loop.`);
+      break;
+    }
+
     const { topic: currentTopic, depth: currentDepth } = queue.shift();
     processedCount++;
     processedTopics.add(currentTopic);
 
-    yield { event: "node_start", topic: currentTopic, depth: currentDepth, processedCount, maxNodes };
+    yield {
+      event: "node_start",
+      topic: currentTopic,
+      depth: currentDepth,
+      processedCount,
+      maxNodes,
+      totalSamples,
+      maxRecords,
+    };
 
     // Select extractor personas for this node
     const nodeExtractors = [];
@@ -349,6 +363,11 @@ async function* runBFS({
 
     // Safely zip scenarios with the personas used to generate them
     for (let i = 0; i < scenarios.length; i++) {
+      if (maxRecords && totalSamples >= maxRecords) {
+        console.log(`[BFS] Reached target record limit of ${maxRecords}. Stopping scenarios for this node.`);
+        break;
+      }
+
       const scenario = scenarios[i];
       const extPersona = nodeExtractors[i] || EXTRACTOR_PERSONAS[0];
 
@@ -373,7 +392,18 @@ async function* runBFS({
       allSamples.push(sample);
       totalSamples++;
 
-      yield { event: "convo_generated", topic: currentTopic, turns: conversation.length, totalSamples };
+      yield {
+        event: "convo_generated",
+        topic: currentTopic,
+        turns: conversation.length,
+        totalSamples,
+        maxRecords,
+      };
+
+      if (maxRecords && totalSamples >= maxRecords) {
+        console.log(`[BFS] Reached target limit (${totalSamples}/${maxRecords}).`);
+        break;
+      }
 
       if (currentDepth < maxDepth && allSubtopics.length === 0) {
         try {
@@ -384,6 +414,14 @@ async function* runBFS({
         }
       }
     }
+
+    yield { event: "node_done", topic: currentTopic, samplesAdded: scenarios.length, totalSamples };
+
+    if (maxRecords && totalSamples >= maxRecords) {
+      console.log(`[BFS] Dataset reached target of ${totalSamples} records. Finalizing.`);
+      break;
+    }
+
 
     // Dedup and filter subtopics through visited set here (not in the LLM)
     if (currentDepth < maxDepth) {

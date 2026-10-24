@@ -68,6 +68,7 @@ app.post("/jobs", auth, async (req, res) => {
     topic,
     maxDepth = 2,
     maxNodes = 10,
+    maxRecords = 20,
     branchingFactor = 3,
     model = "meta-llama/llama-3.3-70b-instruct:free",
     turns = 5,
@@ -81,15 +82,16 @@ app.post("/jobs", auth, async (req, res) => {
     const job = await Job.create({
       userId: req.user.id,
       topic: topic.trim(),
-      config: { maxDepth, maxNodes, branchingFactor, model, turns, assistantPersona, scenariosPerNode },
+      config: { maxDepth, maxNodes, maxRecords, branchingFactor, model, turns, assistantPersona, scenariosPerNode },
       status: "pending",
     });
-    console.log(`[DB] Created new job: ${job._id} for topic: "${topic.trim()}"`);
+    console.log(`[DB] Created new job: ${job._id} for topic: "${topic.trim()}" | Target records: ${maxRecords}`);
     res.json({ jobId: job._id });
   } catch (err) {
     res.status(500).json({ error: "Failed to create job: " + err.message });
   }
 });
+
 
 // SSE stream — runs BFS and streams events; apiKey sent via query or fallback to env
 app.get("/jobs/:id/stream", auth, async (req, res) => {
@@ -147,11 +149,11 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
       }
     };
 
-    const { maxDepth, maxNodes, branchingFactor, model, turns, assistantPersona = "random", scenariosPerNode } = job.config || {};
+    const { maxDepth, maxNodes, maxRecords, branchingFactor, model, turns, assistantPersona = "random", scenariosPerNode } = job.config || {};
     const topic = job.topic;
     const topicsCovered = [];
 
-    console.log(`[DB] Starting job: ${job._id} | Model: ${model}`);
+    console.log(`[DB] Starting job: ${job._id} | Model: ${model} | Target Records: ${maxRecords || "unlimited"}`);
     await Job.findByIdAndUpdate(job._id, { status: "running" });
 
     let finalEvent = null;
@@ -161,6 +163,7 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
         topic,
         maxDepth,
         maxNodes,
+        maxRecords,
         branchingFactor,
         model,
         turns,
@@ -171,6 +174,7 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
           await Job.findByIdAndUpdate(job._id, { $push: { samples: sample } });
         },
       })) {
+
         if (isAborted) {
           console.log(`[BFS] Stopping job ${job._id} cleanly because client canceled.`);
           break;

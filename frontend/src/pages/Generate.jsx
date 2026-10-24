@@ -26,10 +26,12 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
   const [customModel, setCustomModel] = useState("");
   const [maxDepth, setMaxDepth] = useState(2);
   const [maxNodes, setMaxNodes] = useState(6);
+  const [maxRecords, setMaxRecords] = useState(20);
   const [branchingFactor, setBranchingFactor] = useState(3);
   const [turns, setTurns] = useState(4);
   const [scenariosPerNode, setScenariosPerNode] = useState(3);
   const [assistantPersona, setAssistantPersona] = useState("random");
+
 
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
@@ -95,12 +97,14 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
       topic: topic.trim(),
       maxDepth,
       maxNodes,
+      maxRecords,
       branchingFactor,
       model: activeModel,
       turns,
       assistantPersona,
       scenariosPerNode,
     });
+
 
     if (error) {
       setStatusText(`Error: ${error}`);
@@ -137,12 +141,14 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
         } else if (evt.event === "convo_generated") {
           currentSamples = evt.totalSamples;
           setSamplesCount(currentSamples);
-          const msg = `Sample #${currentSamples} created for "${evt.topic}" (${evt.turns} turns)`;
+          const targetLimit = evt.maxRecords || maxRecords;
+          const msg = `Sample #${currentSamples}${targetLimit ? ` / ${targetLimit}` : ""} generated for "${evt.topic}" (${evt.turns} turns)`;
           setStatusText(msg);
           setLogs((prev) => [...prev.slice(-40), { text: msg, time: new Date().toLocaleTimeString() }]);
-          const estTotal = maxNodes * scenariosPerNode;
-          setProgress(Math.min(10 + Math.round((currentSamples / estTotal) * 85), 96));
+          const estTotal = targetLimit || (maxNodes * scenariosPerNode);
+          setProgress(Math.min(5 + Math.round((currentSamples / estTotal) * 92), 98));
         } else if (evt.event === "scenario_skip") {
+
           const msg = `Notice: ${evt.message}`;
           setLogs((prev) => [...prev.slice(-40), { text: msg, time: new Date().toLocaleTimeString(), warn: true }]);
         } else if (evt.event === "subtopics_found") {
@@ -278,8 +284,39 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
             </div>
             
             <div className="modal-grid">
+              <div className="modal-slider-field" style={{ backgroundColor: "#262626", padding: "0.85rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-default)" }}>
+                <div className="slider-label-row">
+                  <span>Target Records (Break Limit): <strong style={{ color: "var(--accent-green)", fontSize: "1.05rem" }}>{maxRecords}</strong></span>
+                  <span className="slider-hint">Stops immediately upon reaching target</span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={maxRecords}
+                  onChange={(e) => setMaxRecords(+e.target.value)}
+                  disabled={running}
+                  style={{ marginTop: "0.5rem" }}
+                />
+                <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem" }}>
+                  {[10, 20, 30, 50, 100].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      className={`filter-pill ${maxRecords === num ? "active" : ""}`}
+                      style={{ padding: "0.2rem 0.6rem", fontSize: "0.75rem" }}
+                      onClick={() => setMaxRecords(num)}
+                    >
+                      {num} records
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="modal-field">
                 <label>Assistant Persona</label>
+
                 <select
                   value={assistantPersona}
                   onChange={(e) => setAssistantPersona(e.target.value)}
@@ -600,14 +637,15 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
               type="button"
               className="pill-btn"
               onClick={() => setShowConfigModal(true)}
-              title="Tune BFS Parameters"
+              title="Tune BFS Parameters & Target Records"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
-              <span>Params</span>
+              <span>Params ({maxRecords} records)</span>
             </button>
+
           </div>
 
           <div className="controls-right">

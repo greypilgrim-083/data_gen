@@ -172,6 +172,9 @@ export default function Analytics({ jobId, onBack, onNavigateDatasets }) {
             <strong>Depth:</strong> {cfg.maxDepth || 2}
           </span>
           <span className="cfg-badge">
+            <strong>Target Limit:</strong> {cfg.maxRecords ? `${cfg.maxRecords} records` : "unlimited"}
+          </span>
+          <span className="cfg-badge">
             <strong>Max Topics:</strong> {cfg.maxNodes || 10}
           </span>
           <span className="cfg-badge">
@@ -180,6 +183,7 @@ export default function Analytics({ jobId, onBack, onNavigateDatasets }) {
           <span className="cfg-badge">
             <strong>Exchanges:</strong> {cfg.turns || 4}
           </span>
+
           {cfg.assistantPersona && (
             <span className="cfg-badge">
               <strong>Persona:</strong> {cfg.assistantPersona}
