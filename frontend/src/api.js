@@ -1,12 +1,25 @@
 export const BASE = import.meta.env.DEV ? "http://localhost:5000" : "";
 
-const getToken = () => localStorage.getItem("token");
+const getToken = () => localStorage.getItem("token") || "";
 
-const headers = (extra = {}) => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
-  ...extra,
-});
+const headers = (extra = {}) => {
+  const token = getToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+};
+
+export async function getConfig() {
+  try {
+    const res = await fetch(`${BASE}/api/config`);
+    return await res.json();
+  } catch (err) {
+    console.error("Failed to load config:", err);
+    return { hasServerApiKey: false, defaultModel: "meta-llama/llama-3.3-70b-instruct:free" };
+  }
+}
 
 export async function register(email, password) {
   const res = await fetch(`${BASE}/auth/register`, {
@@ -45,16 +58,6 @@ export async function getJob(id) {
   return res.json();
 }
 
-export function streamJob(jobId, apiKey, onEvent) {
-  const url = `${BASE}/jobs/${jobId}/stream?apiKey=${encodeURIComponent(apiKey)}`;
-  const source = new EventSource(url + `&token=${getToken()}`);
-  // EventSource doesn't support custom headers, so we pass token as query param
-  // Backend needs to support this — handled below
-  source.onmessage = (e) => onEvent(JSON.parse(e.data));
-  source.onerror = () => source.close();
-  return source;
-}
-
 export function downloadUrl(jobId, format = "sharegpt") {
-  return `${BASE}/jobs/${jobId}/download?format=${format}&token=${getToken()}`;
+  return `${BASE}/jobs/${jobId}/download?format=${format}&token=${encodeURIComponent(getToken())}`;
 }
