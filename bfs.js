@@ -108,16 +108,19 @@ function parseConversation(text) {
 }
 
 
-async function llm(messages, model, apiKey, retries = 3) {
+async function llm(messages, model, apiKey, temperature = 0.8, retries = 3) {
+  const actualTemp = typeof temperature === "number" ? temperature : 0.8;
+  const actualRetries = typeof retries === "number" ? retries : 3;
+
   const cleanKey = (apiKey || "").replace(/[^\x20-\x7E]/g, "").trim();
   if (!cleanKey) {
     throw new Error("OpenRouter API key is missing. Please provide your key in settings or set OPENROUTER_API_KEY in .env");
   }
 
   let attempt = 0;
-  while (attempt <= retries) {
+  while (attempt <= actualRetries) {
     try {
-      console.log(`[API] -> Requesting ${model} (attempt ${attempt + 1}/${retries + 1}). Messages: ${messages.length}`);
+      console.log(`[API] -> Requesting ${model} (attempt ${attempt + 1}/${actualRetries + 1}, temp: ${actualTemp}). Messages: ${messages.length}`);
       const res = await fetch(OPENROUTER_URL, {
         method: "POST",
         headers: {
@@ -129,9 +132,10 @@ async function llm(messages, model, apiKey, retries = 3) {
         body: JSON.stringify({
           model,
           messages,
-          temperature: 0.8,
+          temperature: actualTemp,
         }),
       });
+
 
       if (!res.ok) {
         let errBody = "";
@@ -219,41 +223,79 @@ Example: ["A bootcamp student needs to reverse a linked list...", ...]`,
   return parseJsonArray(content);
 }
 
+// Interactive 2-agent conversation simulation between Human Persona and AI Expert Persona
+// Agent A (Human User) and Agent B (AI Assistant) are separate LLM calls talking in an alternating loop.
 async function generateConversation(scenario, topic, model, apiKey, turns = 5, extPersona, genPersona) {
-  const extSystem = extPersona.system
-    .replace(/{subtopic}/g, topic)
-    .replace(/output exactly:\s*TERMINATE/gi, "conclude your questions naturally")
-    .replace(/TERMINATE/g, "");
+  const extSystem = extPersona.system.replace(/{subtopic}/g, topic);
   const genSystem = genPersona.system.replace(/{subtopic}/g, topic);
 
-  const content = await llm(
-    [
-      {
-        role: "system",
-        content: `You are simulating a realistic conversation about "${topic}".
-Generate a multi-turn dialogue of exactly ${turns} exchanges (user + assistant alternating).
+  const conversation = [];
 
-USER PERSONA (The human asking questions):
-${extSystem}
+  // 1. Human Agent History (User Persona only — never sees Assistant prompt)
+  const humanHistory = [
+    { role: "system", content: extSystem },
+    {
+      role: "user",
+      content: `Context / Scenario:\n${scenario}\n\nStart the conversation in character by presenting your question or problem to the assistant.`,
+    },
+  ];
 
-ASSISTANT PERSONA (The AI expert answering):
-${genSystem}
+  // 2. Assistant Agent History (AI Expert Persona only — never sees User system prompt)
+  const assistantHistory = [
+    { role: "system", content: genSystem },
+  ];
 
-CRITICAL RULES:
-- The human user drives the conversation and asks questions reflecting their user persona.
-- The assistant is the AI expert who provides in-depth, production-ready, technical answers according to their persona.
-- The assistant must NEVER output meta-instructions, stop words, or "TERMINATE". The assistant must ALWAYS provide a helpful, full answer.
-- Do NOT output robotic phrases like "TERMINATE" or break character. Conclude dialogue naturally.
-Return ONLY a JSON array: [{"role":"user","content":"..."},{"role":"assistant","content":"..."},...]`,
-      },
-      { role: "user", content: `Scenario: ${scenario}` },
-    ],
-    model,
-    apiKey
-  );
+  for (let turn = 0; turn < turns; turn++) {
+    // ── Turn A: Human User Persona speaks (Separate LLM Call #1) ─────────────
+    let humanText = await llm(humanHistory, model, apiKey, extPersona.temperature || 0.85);
+    humanText = (humanText || "").trim();
 
-  return parseConversation(content);
+    // Check if human signaled TERMINATE
+    const isTerminate = /\bTERMINATE\b/i.test(humanText);
+    const cleanHumanText = humanText.replace(/\bTERMINATE\b/gi, "").trim();
+
+    if (isTerminate) {
+      if (cleanHumanText) {
+        conversation.push({ role: "user", content: cleanHumanText });
+      }
+      console.log(`[CONVO] Human persona signaled TERMINATE at turn ${turn + 1}. Conversation concluded.`);
+      break;
+    }
+
+    if (!cleanHumanText) break;
+
+    // Record human turn in dataset
+    conversation.push({ role: "user", content: cleanHumanText });
+
+    // Update human agent's own dialogue history (Human's utterance is "assistant" in its own history)
+    humanHistory.push({ role: "assistant", content: humanText });
+
+    // ── Turn B: AI Assistant Persona answers (Separate LLM Call #2) ───────────
+    // The assistant receives the human's question as a user message
+    assistantHistory.push({ role: "user", content: cleanHumanText });
+
+    let assistantText = await llm(assistantHistory, model, apiKey, genPersona.temperature || 0.7);
+    assistantText = (assistantText || "").replace(/\bTERMINATE\b/gi, "").trim();
+
+    if (!assistantText) break;
+
+    // Record assistant turn in dataset
+    conversation.push({ role: "assistant", content: assistantText });
+
+    // Update assistant agent's own dialogue history
+    assistantHistory.push({ role: "assistant", content: assistantText });
+
+    // Feed assistant's answer back to Human for next turn
+    humanHistory.push({ role: "user", content: assistantText });
+  }
+
+  if (conversation.length < 2) {
+    throw new Error("Conversation was too short (less than 2 exchanges generated).");
+  }
+
+  return conversation;
 }
+
 
 async function extractSubtopics(conversation, model, apiKey) {
   const conversationText = conversation
