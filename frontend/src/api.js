@@ -58,6 +58,23 @@ export async function getJob(id) {
   return res.json();
 }
 
+export async function deleteJob(id) {
+  const res = await fetch(`${BASE}/jobs/${id}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
+  return res.json();
+}
+
+export async function stopJob(id) {
+  const res = await fetch(`${BASE}/jobs/${id}/stop`, {
+    method: "POST",
+    headers: headers(),
+  });
+  return res.json();
+}
+
+
 export function downloadUrl(jobId, format = "sharegpt") {
   return `${BASE}/jobs/${jobId}/download?format=${format}&token=${encodeURIComponent(getToken())}`;
 }

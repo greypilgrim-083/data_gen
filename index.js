@@ -196,24 +196,112 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
 app.get("/jobs", auth, async (req, res) => {
   try {
     const jobs = await Job.find({ userId: req.user.id })
-      .select("topic config status topicsCovered createdAt metrics")
+      .select("topic config status topicsCovered createdAt metrics samples")
       .sort({ createdAt: -1 });
-    res.json(jobs);
+
+    const formatted = jobs.map((j) => {
+      const sampleCount = j.samples?.length || j.metrics?.totalRecords || 0;
+      let totalTokens = j.metrics?.totalTokens;
+      if (!totalTokens && j.samples?.length) {
+        let tokens = 0;
+        j.samples.forEach((s) => {
+          (s.conversations || []).forEach((c) => {
+            tokens += Math.ceil((c.value?.length || 0) / 4);
+          });
+        });
+        totalTokens = tokens;
+      }
+
+      return {
+        _id: j._id,
+        topic: j.topic,
+        config: j.config,
+        status: j.status,
+        topicsCovered: j.topicsCovered,
+        createdAt: j.createdAt,
+        sampleCount,
+        metrics: {
+          totalRecords: sampleCount,
+          uniqueTopics: j.topicsCovered?.length || 0,
+          totalTokens: totalTokens || 0,
+          avgTurns: j.metrics?.avgTurns || (sampleCount ? "4.0" : 0),
+          avgSequenceLength: j.metrics?.avgSequenceLength || 0,
+        },
+      };
+    });
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: "Failed to list jobs: " + err.message });
   }
 });
 
-// Get single job details
+// Get single job details (includes samples for viewing/inspecting)
 app.get("/jobs/:id", auth, async (req, res) => {
   try {
-    const job = await Job.findOne({ _id: req.params.id, userId: req.user.id }).select("-samples");
+    const job = await Job.findOne({ _id: req.params.id, userId: req.user.id });
     if (!job) return res.status(404).json({ error: "Job not found" });
-    res.json(job);
+
+    const samples = job.samples || [];
+    let totalTokens = 0;
+    let totalTurns = 0;
+
+    samples.forEach((s) => {
+      (s.conversations || []).forEach((c) => {
+        totalTurns += 1;
+        totalTokens += Math.ceil((c.value?.length || 0) / 4);
+      });
+    });
+
+    const metrics = (job.metrics && job.metrics.totalRecords) ? job.metrics : {
+      totalRecords: samples.length,
+      uniqueTopics: job.topicsCovered?.length || 0,
+      totalTokens,
+      avgTurns: samples.length ? (totalTurns / samples.length).toFixed(1) : 0,
+      avgSequenceLength: totalTurns ? Math.ceil(totalTokens / totalTurns) : 0,
+    };
+
+    res.json({
+      _id: job._id,
+      topic: job.topic,
+      config: job.config,
+      status: job.status,
+      topicsCovered: job.topicsCovered,
+      createdAt: job.createdAt,
+      metrics,
+      samples, // Rich conversations preview/list
+    });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch job: " + err.message });
   }
 });
+
+// Delete job/dataset
+app.delete("/jobs/:id", auth, async (req, res) => {
+  try {
+    const job = await Job.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json({ success: true, message: "Dataset deleted" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete job: " + err.message });
+  }
+});
+
+// Stop a running job
+app.post("/jobs/:id/stop", auth, async (req, res) => {
+  try {
+    const job = await Job.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      { status: "done" },
+      { new: true }
+    );
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json({ success: true, status: "done" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Download dataset
 app.get("/jobs/:id/download", auth, async (req, res) => {
