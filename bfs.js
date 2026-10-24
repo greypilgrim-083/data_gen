@@ -58,6 +58,15 @@ function parseJsonArray(text) {
   throw new Error("Failed to parse JSON array from LLM response");
 }
 
+function cleanTurnText(text) {
+  if (!text || typeof text !== "string") return "";
+  return text
+    .replace(/^\s*TERMINATE\s*$/gi, "")
+    .replace(/(?:\r?\n)?\s*TERMINATE\s*$/gi, "")
+    .replace(/\bTERMINATE\b/g, "")
+    .trim();
+}
+
 function parseConversation(text) {
   const cleaned = stripReasoningAndMarkdown(text);
   const match = cleaned.match(/\[[\s\S]*\]/);
@@ -65,13 +74,15 @@ function parseConversation(text) {
     try {
       const parsed = JSON.parse(cleanJsonString(match[0]));
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((msg) => ({
-          role: (msg.role || msg.from || "").toLowerCase().includes("user") ||
-                (msg.role || "").toLowerCase().includes("human")
-            ? "user"
-            : "assistant",
-          content: msg.content || msg.value || msg.text || "",
-        }));
+        return parsed
+          .map((msg) => ({
+            role: (msg.role || msg.from || "").toLowerCase().includes("user") ||
+                  (msg.role || "").toLowerCase().includes("human")
+              ? "user"
+              : "assistant",
+            content: cleanTurnText(msg.content || msg.value || msg.text || ""),
+          }))
+          .filter((msg) => msg.content.length > 0);
       }
     } catch {
       // Fall through to regex-based fallback
@@ -84,7 +95,8 @@ function parseConversation(text) {
   let roleToggle = "user";
   let m;
   while ((m = regex.exec(cleaned)) !== null) {
-    const content = m[1].trim();
+    const rawContent = m[1].trim();
+    const content = cleanTurnText(rawContent);
     if (content) {
       messages.push({ role: roleToggle, content });
       roleToggle = roleToggle === "user" ? "assistant" : "user";
@@ -94,6 +106,7 @@ function parseConversation(text) {
 
   throw new Error("Failed to parse conversation dialogue from LLM response");
 }
+
 
 async function llm(messages, model, apiKey, retries = 3) {
   const cleanKey = (apiKey || "").replace(/[^\x20-\x7E]/g, "").trim();
@@ -207,7 +220,10 @@ Example: ["A bootcamp student needs to reverse a linked list...", ...]`,
 }
 
 async function generateConversation(scenario, topic, model, apiKey, turns = 5, extPersona, genPersona) {
-  const extSystem = extPersona.system.replace(/{subtopic}/g, topic);
+  const extSystem = extPersona.system
+    .replace(/{subtopic}/g, topic)
+    .replace(/output exactly:\s*TERMINATE/gi, "conclude your questions naturally")
+    .replace(/TERMINATE/g, "");
   const genSystem = genPersona.system.replace(/{subtopic}/g, topic);
 
   const content = await llm(
@@ -220,13 +236,14 @@ Generate a multi-turn dialogue of exactly ${turns} exchanges (user + assistant a
 USER PERSONA (The human asking questions):
 ${extSystem}
 
-ASSISTANT PERSONA (The AI answering):
+ASSISTANT PERSONA (The AI expert answering):
 ${genSystem}
 
-Rules:
-- The user must stay entirely within character.
-- The assistant must stay entirely within character.
-- Do NOT output generic ping-pong. Make it feel incredibly realistic.
+CRITICAL RULES:
+- The human user drives the conversation and asks questions reflecting their user persona.
+- The assistant is the AI expert who provides in-depth, production-ready, technical answers according to their persona.
+- The assistant must NEVER output meta-instructions, stop words, or "TERMINATE". The assistant must ALWAYS provide a helpful, full answer.
+- Do NOT output robotic phrases like "TERMINATE" or break character. Conclude dialogue naturally.
 Return ONLY a JSON array: [{"role":"user","content":"..."},{"role":"assistant","content":"..."},...]`,
       },
       { role: "user", content: `Scenario: ${scenario}` },
