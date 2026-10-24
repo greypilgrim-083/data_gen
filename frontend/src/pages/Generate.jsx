@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { createJob, getConfig, BASE } from "../api";
+import { createJob, getConfig, stopJob, deleteJob, BASE } from "../api";
+
 
 const PRESET_MODELS = [
   { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B (Free)", badge: "Free" },
@@ -32,6 +33,11 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
 
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState(null);
+  const [samplesCount, setSamplesCount] = useState(0);
+  const [isDiscarding, setIsDiscarding] = useState(false);
+
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
@@ -103,6 +109,8 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
       return;
     }
 
+    setCurrentJobId(jobId);
+    setSamplesCount(0);
     if (onJobCreated) onJobCreated(jobId);
 
     const token = localStorage.getItem("token") || "";
@@ -128,6 +136,7 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
           setLogs((prev) => [...prev.slice(-40), { text: msg, time: new Date().toLocaleTimeString() }]);
         } else if (evt.event === "convo_generated") {
           currentSamples = evt.totalSamples;
+          setSamplesCount(currentSamples);
           const msg = `Sample #${currentSamples} created for "${evt.topic}" (${evt.turns} turns)`;
           setStatusText(msg);
           setLogs((prev) => [...prev.slice(-40), { text: msg, time: new Date().toLocaleTimeString() }]);
@@ -163,7 +172,7 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
     es.onerror = () => {
       es.close();
       setRunning(false);
-      setStatusText("Connection closed or interrupted.");
+      setStatusText("Connection closed.");
     };
   };
 
@@ -172,7 +181,43 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
     setRunning(false);
     setStatusText("Dataset generation stopped by user.");
     setLogs((prev) => [...prev, { text: "Stopped by user.", time: new Date().toLocaleTimeString(), warn: true }]);
+    setShowCancelModal(true);
   };
+
+  const handleKeepDataset = async () => {
+    if (currentJobId) {
+      try {
+        await stopJob(currentJobId);
+      } catch (err) {
+        console.error("Error finalizing dataset on stop:", err);
+      }
+      setShowCancelModal(false);
+      onNavigateAnalytics(currentJobId);
+    } else {
+      setShowCancelModal(false);
+    }
+  };
+
+  const handleDiscardDataset = async () => {
+    if (currentJobId) {
+      setIsDiscarding(true);
+      try {
+        await deleteJob(currentJobId);
+      } catch (err) {
+        console.error("Error discarding dataset:", err);
+      } finally {
+        setIsDiscarding(false);
+      }
+    }
+    setShowCancelModal(false);
+    setRunning(false);
+    setProgress(0);
+    setStatusText("");
+    setLogs([]);
+    setCurrentJobId(null);
+    setSamplesCount(0);
+  };
+
 
   const isKeyReady = Boolean(apiKey.trim() || hasServerKey);
 
@@ -332,6 +377,66 @@ export default function Generate({ onJobCreated, onNavigateAnalytics }) {
               >
                 Apply Parameters
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && (
+        <div className="chatgpt-modal-overlay">
+          <div className="chatgpt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Generation Stopped</h3>
+            </div>
+            <p className="modal-desc" style={{ fontSize: "0.95rem", lineHeight: "1.5" }}>
+              You stopped generation for <strong>"{topic}"</strong>.
+              <br /><br />
+              {samplesCount > 0 ? (
+                <>
+                  <strong>{samplesCount} conversation sample{samplesCount === 1 ? "" : "s"}</strong> were successfully generated and saved before stopping.
+                  <br /><br />
+                  Would you like to <strong>keep</strong> this dataset or <strong>discard</strong> it?
+                </>
+              ) : (
+                <>
+                  No samples were completed before stopping.
+                </>
+              )}
+            </p>
+
+            <div className="modal-actions" style={{ justifyContent: "space-between", marginTop: "1.5rem" }}>
+              <button
+                className="chatgpt-btn chatgpt-btn-ghost"
+                style={{ color: "var(--accent-red)", borderColor: "rgba(239, 68, 68, 0.4)" }}
+                onClick={handleDiscardDataset}
+                disabled={isDiscarding}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>{isDiscarding ? "Discarding..." : "Discard Dataset"}</span>
+              </button>
+
+              {samplesCount > 0 ? (
+                <button
+                  className="chatgpt-btn chatgpt-btn-primary"
+                  onClick={handleKeepDataset}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span>Keep Dataset ({samplesCount} samples)</span>
+                </button>
+              ) : (
+                <button
+                  className="chatgpt-btn chatgpt-btn-primary"
+                  onClick={handleDiscardDataset}
+                >
+                  Dismiss
+                </button>
+              )}
             </div>
           </div>
         </div>

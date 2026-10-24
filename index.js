@@ -109,8 +109,40 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders?.();
 
+    let isAborted = false;
+    req.on("close", async () => {
+      isAborted = true;
+      console.log(`[STREAM] Connection closed by client for job: ${job._id}`);
+      // Finalize whatever was generated so far
+      try {
+        const current = await Job.findById(job._id);
+        if (current && current.status === "running") {
+          const samples = current.samples || [];
+          let totalTokens = 0;
+          let totalTurns = 0;
+          samples.forEach((s) => {
+            (s.conversations || []).forEach((c) => {
+              totalTurns += 1;
+              totalTokens += Math.ceil((c.value?.length || 0) / 4);
+            });
+          });
+          const metrics = {
+            totalRecords: samples.length,
+            uniqueTopics: (current.topicsCovered || []).length,
+            totalTokens,
+            avgTurns: samples.length ? (totalTurns / samples.length).toFixed(1) : 0,
+            avgSequenceLength: totalTurns ? Math.ceil(totalTokens / totalTurns) : 0,
+          };
+          const newStatus = samples.length > 0 ? "done" : "failed";
+          await Job.findByIdAndUpdate(job._id, { status: newStatus, metrics });
+        }
+      } catch (err) {
+        console.error("Error finalizing on disconnect:", err);
+      }
+    });
+
     const send = (obj) => {
-      if (!res.writableEnded) {
+      if (!res.writableEnded && !isAborted) {
         res.write(`data: ${JSON.stringify(obj)}\n\n`);
       }
     };
@@ -139,6 +171,11 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
           await Job.findByIdAndUpdate(job._id, { $push: { samples: sample } });
         },
       })) {
+        if (isAborted) {
+          console.log(`[BFS] Stopping job ${job._id} cleanly because client canceled.`);
+          break;
+        }
+
         if (event.event === "node_start") {
           topicsCovered.push(event.topic);
           await Job.findByIdAndUpdate(job._id, { $push: { topicsCovered: event.topic } });
@@ -165,23 +202,49 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
 
       const metrics = {
         totalRecords: samples.length,
-        uniqueTopics: topicsCovered.length,
+        uniqueTopics: (updatedJob.topicsCovered || topicsCovered).length,
         totalTokens,
         avgTurns: samples.length ? (totalTurns / samples.length).toFixed(1) : 0,
         avgSequenceLength: totalTurns ? Math.ceil(totalTokens / totalTurns) : 0,
       };
 
-      console.log(`[DB] Job ${job._id} complete. Samples generated: ${samples.length}`);
-      await Job.findByIdAndUpdate(job._id, { status: "done", metrics });
+      console.log(`[DB] Job ${job._id} finished. Total samples: ${samples.length}`);
+      await Job.findByIdAndUpdate(job._id, { status: samples.length > 0 ? "done" : "failed", metrics });
 
-      if (finalEvent) send(finalEvent);
+      if (finalEvent && !isAborted) send(finalEvent);
     } catch (e) {
-      console.error(`[STREAM ERROR] Job ${job._id} failed:`, e.message);
-      send({ event: "error", message: e.message });
-      await Job.findByIdAndUpdate(job._id, { status: "failed" });
+      console.error(`[STREAM ERROR] Job ${job._id}:`, e.message);
+      if (!isAborted) {
+        send({ event: "error", message: e.message });
+      }
+
+      const current = await Job.findById(job._id);
+      const samples = current?.samples || [];
+      if (samples.length > 0) {
+        let totalTokens = 0;
+        let totalTurns = 0;
+        samples.forEach((s) => {
+          (s.conversations || []).forEach((c) => {
+            totalTurns += 1;
+            totalTokens += Math.ceil((c.value?.length || 0) / 4);
+          });
+        });
+        const metrics = {
+          totalRecords: samples.length,
+          uniqueTopics: (current.topicsCovered || []).length,
+          totalTokens,
+          avgTurns: samples.length ? (totalTurns / samples.length).toFixed(1) : 0,
+          avgSequenceLength: totalTurns ? Math.ceil(totalTokens / totalTurns) : 0,
+        };
+        await Job.findByIdAndUpdate(job._id, { status: "done", metrics });
+      } else {
+        await Job.findByIdAndUpdate(job._id, { status: "failed" });
+      }
     }
 
-    res.end();
+    if (!res.writableEnded) {
+      res.end();
+    }
   } catch (err) {
     console.error("[STREAM HANDLER ERROR]", err);
     if (!res.headersSent) {
@@ -191,6 +254,7 @@ app.get("/jobs/:id/stream", auth, async (req, res) => {
     }
   }
 });
+
 
 // List user's jobs
 app.get("/jobs", auth, async (req, res) => {
@@ -287,16 +351,38 @@ app.delete("/jobs/:id", auth, async (req, res) => {
   }
 });
 
-// Stop a running job
+// Stop a running job and finalize metrics
 app.post("/jobs/:id/stop", auth, async (req, res) => {
   try {
-    const job = await Job.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { status: "done" },
+    const job = await Job.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    const samples = job.samples || [];
+    let totalTokens = 0;
+    let totalTurns = 0;
+    samples.forEach((s) => {
+      (s.conversations || []).forEach((c) => {
+        totalTurns += 1;
+        totalTokens += Math.ceil((c.value?.length || 0) / 4);
+      });
+    });
+
+    const metrics = {
+      totalRecords: samples.length,
+      uniqueTopics: job.topicsCovered?.length || 0,
+      totalTokens,
+      avgTurns: samples.length ? (totalTurns / samples.length).toFixed(1) : 0,
+      avgSequenceLength: totalTurns ? Math.ceil(totalTokens / totalTurns) : 0,
+    };
+
+    const newStatus = samples.length > 0 ? "done" : "failed";
+    const updated = await Job.findByIdAndUpdate(
+      job._id,
+      { status: newStatus, metrics },
       { new: true }
     );
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    res.json({ success: true, status: "done" });
+
+    res.json({ success: true, status: newStatus, metrics, sampleCount: samples.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
